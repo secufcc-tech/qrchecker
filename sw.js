@@ -1,7 +1,7 @@
 /* Service worker — Validación de accesos
    Estrategia cache-first: tras la primera carga, la app funciona 100% sin conexión.
    Para publicar una versión nueva de la app, sube el número de CACHE (v1 -> v2). */
-const CACHE = "valida-v1";
+const CACHE = "valida-v2";
 const CORE = [
   "./",
   "./validacion.html",
