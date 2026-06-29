@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#15171C">
+<title>Validación de accesos · Puesto del guardia</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Validación">
+<!-- Decodificador de QR para iPhone/Safari (Android usa el nativo). Local primero; si no está, respaldo CDN. -->
+<script src="jsQR.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';s.onerror=function(){window.__jsqrFailed=true;};document.head.appendChild(s);})()"></script>
+<style>
+  :root{
+    --ink:#15171C;--panel:#1E2128;--panel-2:#23262F;--line:#2E323C;--text:#E8E6E0;--muted:#8A8F9A;
+    --amber:#E8A33D;--verify:#5FBF8F;--verify-bg:#163a2b;--revoke:#D8694E;--revoke-bg:#3a1a14;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100%}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(21,23,28,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topbar-inner{padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .brand{display:flex;align-items:center;gap:10px;margin-inline-end:auto;min-width:0}
+  .brand-mark{width:30px;height:30px;border:1.5px solid var(--verify);border-radius:6px;display:grid;place-items:center;color:var(--verify);font-weight:700;font-size:16px;flex:none}
+  .brand-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand-sub{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
+  .langsel{display:flex;gap:2px;border:1px solid var(--line);border-radius:7px;overflow:hidden;flex:none}
+  .langsel button{appearance:none;background:none;border:none;color:var(--muted);padding:6px 9px;font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer}
+  .langsel button.on{background:var(--verify);color:#0c1f17}
+  .gear{appearance:none;background:none;border:1px solid var(--line);border-radius:7px;color:var(--muted);width:34px;height:32px;cursor:pointer;font-size:15px;flex:none}
+  .gear.alert{border-color:var(--amber);color:var(--amber)}
+  .wrap{flex:1;width:100%;max-width:640px;margin:0 auto;padding:16px}
+  .status-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+  .chip .d{width:7px;height:7px;border-radius:50%;background:var(--revoke)}
+  .chip.ok .d{background:var(--verify)} .chip.ok{color:var(--text)}
+  .chip.warn{border-color:var(--amber);color:var(--amber)} .chip.warn .d{background:var(--amber)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
+  .eyebrow{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.16em;margin-bottom:12px}
+  h2{font-size:18px;margin:0 0 4px} .lead{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .btn{appearance:none;border:none;border-radius:9px;font-family:var(--sans);font-weight:600;font-size:15px;padding:13px 18px;cursor:pointer;width:100%}
+  .btn-primary{background:var(--verify);color:#0c1f17}
+  .btn-amber{background:var(--amber);color:#1a1206}
+  .btn-ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .btn-row{display:flex;gap:10px}
+  .filebtn{position:relative;overflow:hidden;display:block}
+  .filebtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .note{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .huella{font-family:var(--mono);font-size:13px;color:var(--verify);letter-spacing:.05em;word-break:break-all}
+  .warn{background:var(--revoke-bg);border:1px solid rgba(216,105,78,.4);border-radius:8px;padding:11px 13px;font-size:13px;color:#e8a392;margin-top:10px}
+  .warnA{background:rgba(232,163,61,.08);border:1px solid rgba(232,163,61,.4);border-radius:8px;padding:11px 13px;font-size:13px;color:#e8be86;margin-top:10px}
+  /* cámara */
+  .camwrap{position:relative;width:100%;aspect-ratio:1/1;background:#0c0d11;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+  video{width:100%;height:100%;object-fit:cover;display:block}
+  .reticle{position:absolute;inset:0;pointer-events:none;display:grid;place-items:center}
+  .reticle .box{width:62%;height:62%;border-radius:18px;box-shadow:0 0 0 100vmax rgba(12,13,17,.45);border:2px solid rgba(255,255,255,.55)}
+  .camhint{position:absolute;inset-inline:0;bottom:12px;text-align:center;font-size:13px;color:#fff;text-shadow:0 1px 4px #000}
+  .camoff{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted);font-size:14px}
+  /* resultado overlay */
+  .result{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;padding:22px;color:#fff}
+  .result.show{display:flex;animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+  .result.valid{background:linear-gradient(160deg,#1c6b48,#10402c)}
+  .result.invalid{background:linear-gradient(160deg,#8f3322,#5a1f14)}
+  .res-icon{font-size:64px;line-height:1;margin:6vh 0 6px;text-align:center}
+  .res-verdict{font-size:30px;font-weight:800;letter-spacing:.02em;text-align:center;margin-bottom:6px}
+  .res-reason{text-align:center;font-size:15px;opacity:.92;margin-bottom:20px}
+  .res-card{background:rgba(0,0,0,.22);border-radius:14px;padding:18px;backdrop-filter:blur(2px)}
+  .res-name{font-size:26px;font-weight:700;line-height:1.15;word-break:break-word}
+  .res-sub{font-size:15px;opacity:.85;margin-top:2px;word-break:break-word}
+  .res-meta{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-size:14px}
+  .res-meta .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;opacity:.7}
+  .res-meta .v{font-weight:600}
+  .res-foot{margin-top:auto;display:flex;gap:10px}
+  .res-foot .btn{background:rgba(255,255,255,.16);color:#fff}
+  .res-door-big{font-family:var(--mono);font-size:14px;opacity:.85;text-align:center;margin-bottom:14px}
+  .hidden{display:none!important}
+  .manual textarea{width:100%;min-height:74px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;padding:10px;resize:vertical}
+  details{margin-top:6px} summary{cursor:pointer;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><div class="brand-mark">✓</div>
+    <div style="min-width:0"><div class="brand-name" data-i18n="brand_name">Validación de accesos</div>
+    <div class="brand-sub" data-i18n="brand_sub">Puesto del guardia</div></div></div>
+  <div class="langsel">
+    <button data-lang="es" class="on">ES</button><button data-lang="en">EN</button><button data-lang="ar">ع</button>
+  </div>
+  <button class="gear" id="gearBtn" title="Setup">⚙</button>
+</div></div>
+
+<div class="wrap">
+  <div class="status-row">
+    <span class="chip" id="chipKey"><span class="d"></span><span data-i18n="chip_nokey">Sin llave</span></span>
+    <span class="chip" id="chipRev"><span class="d"></span><span data-i18n="chip_norev">Sin lista</span></span>
+  </div>
+
+  <!-- SETUP -->
+  <section id="setup">
+    <div class="panel">
+      <div class="eyebrow" data-i18n="pub_section">Llave pública</div>
+      <div class="filebtn btn btn-ghost"><span data-i18n="load_pub">Cargar publica.key</span><input type="file" id="loadPub" accept=".key,.json,application/json"></div>
+      <div id="pubInfo" class="note" data-i18n="pub_none">Sin llave pública. Cárgala para poder validar.</div>
+    </div>
+    <div class="panel">
+      <div class="eyebrow" data-i18n="rev_section">Lista de revocación</div>
+      <div class="filebtn btn btn-ghost"><span data-i18n="load_rev">Cargar revocados.json</span><input type="file" id="loadRev" accept=".json"></div>
+      <div id="revInfo" class="note" data-i18n="rev_none">Sin lista de revocación cargada.</div>
+    </div>
+    <button class="btn btn-primary" id="goScan" data-i18n="go_scan">Ir a escanear</button>
+  </section>
+
+  <!-- SCAN -->
+  <section id="scan" class="hidden">
+    <div class="camwrap">
+      <video id="video" playsinline muted></video>
+      <div class="reticle hidden" id="reticle"><div class="box"></div></div>
+      <div class="camhint hidden" id="camhint" data-i18n="scanning">Apunta al QR del pase…</div>
+      <div class="camoff" id="camoff"><div><div style="font-size:40px;margin-bottom:10px">▢</div><span data-i18n="cam_idle">Pulsa para abrir la cámara y empezar a validar.</span></div></div>
+    </div>
+    <div style="margin-top:14px" id="camControls">
+      <button class="btn btn-primary" id="startCam" data-i18n="start_cam">Iniciar cámara</button>
+    </div>
+    <details class="manual" id="manualWrap">
+      <summary data-i18n="manual_title">Verificar sin cámara (pegar token o subir imagen)</summary>
+      <div style="margin-top:10px">
+        <textarea id="manualToken" data-i18n-ph="manual_ph" placeholder="Pega aquí el token del pase"></textarea>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-ghost" id="manualBtn" data-i18n="manual_btn">Verificar</button>
+          <span class="filebtn btn btn-ghost"><span data-i18n="upload_btn">Subir imagen</span><input type="file" id="imgFile" accept="image/*"></span>
+        </div>
+      </div>
+    </details>
+  </section>
+</div>
+
+<!-- RESULTADO -->
+<div class="result" id="result">
+  <div class="res-icon" id="resIcon">✓</div>
+  <div class="res-verdict" id="resVerdict"></div>
+  <div class="res-reason" id="resReason"></div>
+  <div class="res-door-big" id="resDoorBig"></div>
+  <div class="res-card">
+    <div class="res-name" id="resName"></div>
+    <div class="res-sub" id="resSub"></div>
+    <div class="res-meta">
+      <div><div class="k" data-i18n="res_window">Validez</div><div class="v" id="resWindow"></div></div>
+      <div><div class="k" data-i18n="res_uses_left">Usos restantes</div><div class="v" id="resUses"></div></div>
+    </div>
+  </div>
+  <div class="res-foot"><button class="btn" id="resNext" data-i18n="scan_next">Validar siguiente</button></div>
+</div>
+
+<script>
+"use strict";
+/* ===================== i18n ===================== */
+const I18N={
+ es:{brand_name:"Validación de accesos",brand_sub:"Puesto del guardia",
+  chip_nokey:"Sin llave",chip_key:"Llave OK",chip_norev:"Sin lista",chip_rev:"Lista: {d}",
+  pub_section:"Llave pública",load_pub:"Cargar publica.key",pub_none:"Sin llave pública. Cárgala para poder validar.",
+  pub_loaded:"Llave pública cargada.",pub_fp:"Huella (compárala con la del emisor):",pub_bad:"No es una publica.key válida.",
+  rev_section:"Lista de revocación",load_rev:"Cargar revocados.json",rev_none:"Sin lista de revocación cargada.",
+  rev_loaded:"Lista cargada · generada {d} · {n} revocado(s).",rev_badsig:"⚠ La firma de la lista no es válida. No se ha cargado.",
+  rev_needkey:"Carga primero la llave pública.",rev_bad:"Archivo de revocación no válido.",rev_old:"⚠ La lista tiene {d} días. Pide una actualizada.",
+  go_scan:"Ir a escanear",cam_idle:"Pulsa para abrir la cámara y empezar a validar.",
+  start_cam:"Iniciar cámara",stop_cam:"Detener cámara",scanning:"Apunta al QR del pase…",
+  cam_fail:"No se pudo abrir la cámara. Revisa los permisos.",
+  no_detector:"No se pudo cargar el lector de QR. Conéctate a internet una vez para descargarlo (luego funciona sin conexión) o usa la verificación manual de abajo.",
+  manual_title:"Verificar sin cámara (pegar token o subir imagen)",manual_ph:"Pega aquí el token del pase",
+  manual_btn:"Verificar",upload_btn:"Subir imagen",img_none:"No se detectó ningún QR en la imagen.",
+  scan_next:"Validar siguiente",res_valid:"ACCESO VÁLIDO",res_invalid:"ACCESO DENEGADO",
+  res_window:"Validez",res_uses_left:"Usos restantes",
+  clock_warn:"⚠ El reloj del móvil parece atrasado respecto a la última lista. Verifica la hora.",
+  door_word:"Puerta",door_any:"Cualquier puerta",unlimited_word:"ilimitado",uses_word:"usos",
+  r_ok:"Válido",r_badformat:"Código no legible o con formato no válido.",r_badsig:"Firma no válida — pase falso o alterado.",
+  r_notyet:"Aún no es válido (empieza {d}).",r_expired:"Caducado el {d}.",r_revoked:"Acceso revocado.",
+  r_nouses:"Sin usos disponibles.",r_nokey:"Carga primero la llave pública (⚙)."},
+ en:{brand_name:"Access validation",brand_sub:"Guard station",
+  chip_nokey:"No key",chip_key:"Key OK",chip_norev:"No list",chip_rev:"List: {d}",
+  pub_section:"Public key",load_pub:"Load publica.key",pub_none:"No public key. Load it to validate.",
+  pub_loaded:"Public key loaded.",pub_fp:"Fingerprint (compare with the issuer's):",pub_bad:"Not a valid publica.key.",
+  rev_section:"Revocation list",load_rev:"Load revocados.json",rev_none:"No revocation list loaded.",
+  rev_loaded:"List loaded · generated {d} · {n} revoked.",rev_badsig:"⚠ The list signature is invalid. Not loaded.",
+  rev_needkey:"Load the public key first.",rev_bad:"Invalid revocation file.",rev_old:"⚠ The list is {d} days old. Ask for an updated one.",
+  go_scan:"Go to scan",cam_idle:"Tap to open the camera and start validating.",
+  start_cam:"Start camera",stop_cam:"Stop camera",scanning:"Point at the pass QR…",
+  cam_fail:"Could not open the camera. Check permissions.",
+  no_detector:"Couldn't load the QR reader. Connect to the internet once to download it (then it works offline) or use the manual verification below.",
+  manual_title:"Verify without camera (paste token or upload image)",manual_ph:"Paste the pass token here",
+  manual_btn:"Verify",upload_btn:"Upload image",img_none:"No QR detected in the image.",
+  scan_next:"Validate next",res_valid:"ACCESS GRANTED",res_invalid:"ACCESS DENIED",
+  res_window:"Validity",res_uses_left:"Uses left",
+  clock_warn:"⚠ The phone clock seems behind the last list. Check the time.",
+  door_word:"Door",door_any:"Any door",unlimited_word:"unlimited",uses_word:"uses",
+  r_ok:"Valid",r_badformat:"Code unreadable or invalid format.",r_badsig:"Invalid signature — fake or altered pass.",
+  r_notyet:"Not valid yet (starts {d}).",r_expired:"Expired on {d}.",r_revoked:"Access revoked.",
+  r_nouses:"No uses left.",r_nokey:"Load the public key first (⚙)."},
+ ar:{brand_name:"التحقق من الدخول",brand_sub:"محطة الحارس",
+  chip_nokey:"لا مفتاح",chip_key:"المفتاح جاهز",chip_norev:"لا قائمة",chip_rev:"القائمة: {d}",
+  pub_section:"المفتاح العام",load_pub:"تحميل publica.key",pub_none:"لا يوجد مفتاح عام. حمّله لتتمكن من التحقق.",
+  pub_loaded:"تم تحميل المفتاح العام.",pub_fp:"البصمة (قارنها مع بصمة المُصدِر):",pub_bad:"ليس ملف publica.key صالحاً.",
+  rev_section:"قائمة الإلغاء",load_rev:"تحميل revocados.json",rev_none:"لم تُحمّل قائمة إلغاء.",
+  rev_loaded:"تم تحميل القائمة · أُنشئت {d} · {n} ملغى.",rev_badsig:"⚠ توقيع القائمة غير صالح. لم تُحمّل.",
+  rev_needkey:"حمّل المفتاح العام أولاً.",rev_bad:"ملف إلغاء غير صالح.",rev_old:"⚠ عمر القائمة {d} يوم. اطلب نسخة محدّثة.",
+  go_scan:"ابدأ المسح",cam_idle:"اضغط لفتح الكاميرا والبدء في التحقق.",
+  start_cam:"تشغيل الكاميرا",stop_cam:"إيقاف الكاميرا",scanning:"وجّه نحو رمز التصريح…",
+  cam_fail:"تعذّر فتح الكاميرا. تحقّق من الأذونات.",
+  no_detector:"تعذّر تحميل قارئ الرمز. اتصل بالإنترنت مرة واحدة لتنزيله (ثم يعمل دون اتصال) أو استخدم التحقق اليدوي بالأسفل.",
+  manual_title:"تحقّق بدون كاميرا (الصق الرمز أو ارفع صورة)",manual_ph:"الصق رمز التصريح هنا",
+  manual_btn:"تحقّق",upload_btn:"رفع صورة",img_none:"لم يُكتشف أي رمز في الصورة.",
+  scan_next:"التالي",res_valid:"الدخول مسموح",res_invalid:"الدخول مرفوض",
+  res_window:"الصلاحية",res_uses_left:"المتبقي",
+  clock_warn:"⚠ يبدو أن ساعة الهاتف متأخرة عن آخر قائمة. تحقّق من الوقت.",
+  door_word:"البوابة",door_any:"أي بوابة",unlimited_word:"غير محدود",uses_word:"مرات",
+  r_ok:"صالح",r_badformat:"الرمز غير مقروء أو تنسيقه غير صالح.",r_badsig:"توقيع غير صالح — تصريح مزيّف أو معدّل.",
+  r_notyet:"غير صالح بعد (يبدأ {d}).",r_expired:"انتهى في {d}.",r_revoked:"تم إلغاء الدخول.",
+  r_nouses:"لا توجد استخدامات متبقية.",r_nokey:"حمّل المفتاح العام أولاً (⚙)."}
+};
+let LANG="es";
+function t(k){return (I18N[LANG]&&I18N[LANG][k])||I18N.es[k]||k;}
+function applyLang(){
+  document.documentElement.lang=LANG; document.documentElement.dir=(LANG==="ar")?"rtl":"ltr";
+  document.querySelectorAll("[data-i18n]").forEach(el=>el.textContent=t(el.dataset.i18n));
+  document.querySelectorAll("[data-i18n-ph]").forEach(el=>el.placeholder=t(el.dataset.i18nPh));
+  refreshChips();
+}
+document.querySelectorAll(".langsel button").forEach(b=>{b.onclick=()=>{document.querySelectorAll(".langsel button").forEach(x=>x.classList.remove("on"));b.classList.add("on");LANG=b.dataset.lang;applyLang();};});
+
+/* ===================== utils ===================== */
+const enc=new TextEncoder();
+function b64urlToBytes(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";const bin=atob(s),o=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)o[i]=bin.charCodeAt(i);return o;}
+function fmt(ts){try{return new Date(ts*1000).toLocaleString(LANG,{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});}catch(e){return new Date(ts*1000).toLocaleString();}}
+function daysAgo(ts){return Math.floor((Date.now()/1000-ts)/86400);}
+const LS={get:k=>{try{return JSON.parse(localStorage.getItem("val_"+k));}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem("val_"+k,JSON.stringify(v));}catch(e){}}};
+
+/* ===================== estado ===================== */
+let pubKey=null, pubJwk=null, pubFp=null;
+let revokedSet=new Set(), revGen=null, revMin=null, seenMax=LS.get("seenMax")||0;
+let uses=LS.get("uses")||{};
+
+async function huellaDeX(xB64url){const h=await crypto.subtle.digest("SHA-256",b64urlToBytes(xB64url));const hex=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");return hex.slice(0,16).match(/.{4}/g).join(" ");}
+
+async function importarPub(jwk){
+  if(jwk.kty!=="OKP"||jwk.crv!=="Ed25519"||!jwk.x||jwk.d) throw new Error(t("pub_bad"));
+  pubKey=await crypto.subtle.importKey("jwk",jwk,{name:"Ed25519"},false,["verify"]);
+  pubJwk=jwk; pubFp=await huellaDeX(jwk.x);
+  document.getElementById("pubInfo").innerHTML='<div style="color:var(--verify)">'+t("pub_loaded")+'</div><div class="note">'+t("pub_fp")+'</div><div class="huella">'+pubFp+'</div>';
+  LS.set("pub_jwk",jwk); refreshChips();
+}
+document.getElementById("loadPub").onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+  try{await importarPub(JSON.parse(await f.text()));}catch(e){document.getElementById("pubInfo").innerHTML='<span style="color:var(--revoke)">'+e.message+'</span>';}};
+
+async function cargarRevObj(obj){
+  if(!pubKey) throw new Error(t("rev_needkey"));
+  if(!obj||obj.formato!=="rev-1"||!obj.firmado) throw new Error(t("rev_bad"));
+  const parts=obj.firmado.split("."); if(parts.length!==2) throw new Error(t("rev_bad"));
+  const ok=await crypto.subtle.verify({name:"Ed25519"},pubKey,b64urlToBytes(parts[1]),enc.encode(parts[0]));
+  if(!ok) throw new Error(t("rev_badsig"));
+  const p=JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));
+  revokedSet=new Set(p.ids||[]); revGen=p.gen||null; revMin=p.min||null;
+  seenMax=Math.max(seenMax,p.gen||0,p.min||0); LS.set("seenMax",seenMax);
+  LS.set("rev_obj",obj);
+  renderRevInfo();
+}
+function renderRevInfo(){
+  const el=document.getElementById("revInfo");
+  if(!revGen){el.textContent=t("rev_none");return;}
+  let html='<div style="color:var(--verify)">'+t("rev_loaded").replace("{d}",fmt(revGen)).replace("{n}",revokedSet.size)+'</div>';
+  const age=daysAgo(revGen); if(age>=3) html+='<div class="warnA">'+t("rev_old").replace("{d}",age)+'</div>';
+  el.innerHTML=html; refreshChips();
+}
+document.getElementById("loadRev").onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+  try{await cargarRevObj(JSON.parse(await f.text()));}catch(e){document.getElementById("revInfo").innerHTML='<div class="warn">'+e.message+'</div>';}};
+
+function refreshChips(){
+  const ck=document.getElementById("chipKey"),cr=document.getElementById("chipRev");
+  if(pubKey){ck.classList.add("ok");ck.querySelector("span:last-child").textContent=t("chip_key");}
+  else{ck.classList.remove("ok");ck.querySelector("span:last-child").textContent=t("chip_nokey");}
+  if(revGen){cr.classList.add("ok");cr.classList.toggle("warn",daysAgo(revGen)>=3);cr.querySelector("span:last-child").textContent=t("chip_rev").replace("{d}",fmt(revGen));}
+  else{cr.classList.remove("ok","warn");cr.querySelector("span:last-child").textContent=t("chip_norev");}
+  document.getElementById("gearBtn").classList.toggle("alert",!pubKey||(revGen&&daysAgo(revGen)>=3));
+}
+
+/* ===================== navegación setup/scan ===================== */
+const setupEl=document.getElementById("setup"),scanEl=document.getElementById("scan");
+document.getElementById("goScan").onclick=()=>{setupEl.classList.add("hidden");scanEl.classList.remove("hidden");};
+document.getElementById("gearBtn").onclick=()=>{const s=setupEl.classList.toggle("hidden");scanEl.classList.toggle("hidden",!s);if(s)stopCam();};
+
+/* ===================== verificación ===================== */
+function getUsed(id){return uses[id]||0;}
+function consume(id){uses[id]=getUsed(id)+1;LS.set("uses",uses);}
+async function verificar(token){
+  if(!pubKey) return {ok:false,key:"r_nokey"};
+  const parts=(token||"").trim().split(".");
+  if(parts.length!==2||!parts[0]||!parts[1]) return {ok:false,key:"r_badformat"};
+  let valid; try{valid=await crypto.subtle.verify({name:"Ed25519"},pubKey,b64urlToBytes(parts[1]),enc.encode(parts[0]));}catch(e){return {ok:false,key:"r_badformat"};}
+  if(!valid) return {ok:false,key:"r_badsig"};
+  let p; try{p=JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));}catch(e){return {ok:false,key:"r_badformat"};}
+  const now=Math.floor(Date.now()/1000);
+  if(revokedSet.has(p.id)) return {ok:false,key:"r_revoked",p};
+  if(p.nbf&&now<p.nbf) return {ok:false,key:"r_notyet",p,arg:fmt(p.nbf)};
+  if(p.exp&&now>p.exp) return {ok:false,key:"r_expired",p,arg:fmt(p.exp)};
+  if(p.u&&p.u>0&&getUsed(p.id)>=p.u) return {ok:false,key:"r_nouses",p};
+  return {ok:true,key:"r_ok",p};
+}
+
+/* ===================== mostrar resultado ===================== */
+const resultEl=document.getElementById("result");
+let lastShown={id:null,at:0};
+function mostrar(r){
+  const valid=r.ok, p=r.p||{};
+  resultEl.className="result show "+(valid?"valid":"invalid");
+  document.getElementById("resIcon").textContent=valid?"✓":"✕";
+  document.getElementById("resVerdict").textContent=valid?t("res_valid"):t("res_invalid");
+  let reason=t(r.key); if(r.arg) reason=reason.replace("{d}",r.arg);
+  document.getElementById("resReason").textContent=valid?"":reason;
+  document.getElementById("resDoorBig").textContent=p.d?(t("door_word")+" "+p.d):(p.id?t("door_any"):"");
+  document.getElementById("resName").textContent=p.n||"—";
+  document.getElementById("resSub").textContent=p.sc||"";
+  document.getElementById("resWindow").textContent=(p.nbf&&p.exp)?(fmt(p.nbf)+" → "+fmt(p.exp)):"—";
+  // usos
+  let usesTxt="—";
+  if(p.id){ if(p.u===0) usesTxt=t("unlimited_word"); else if(p.u){ const left=Math.max(0,p.u-getUsed(p.id)-(valid?1:0)); usesTxt=left+" / "+p.u; } }
+  document.getElementById("resUses").textContent=usesTxt;
+  // clock warning
+  const now=Math.floor(Date.now()/1000);
+  if(seenMax&&now<seenMax){ document.getElementById("resReason").textContent=(valid?"":reason+"  ")+t("clock_warn"); }
+  // consumir un uso (una sola vez por presentación)
+  if(valid&&p.u&&p.u>0) consume(p.id);
+  resultEl.scrollTop=0;
+}
+document.getElementById("resNext").onclick=()=>{resultEl.classList.remove("show");lastShown={id:null,at:0};if(camStream)scanLoop();};
+
+async function procesarToken(token){
+  const r=await verificar(token);
+  const id=r.p&&r.p.id?r.p.id:("__"+(token||"").slice(0,12));
+  // anti-doble-conteo: misma presentación dentro de 6s no re-evalúa
+  if(lastShown.id===id&&Date.now()-lastShown.at<6000){return;}
+  lastShown={id,at:Date.now()};
+  mostrar(r);
+}
+
+/* ===================== cámara + decodificador (BarcodeDetector / jsQR) ===================== */
+let camStream=null, detector=null, scanning=false, _cv=null, _cx=null;
+const video=document.getElementById("video");
+function hasNative(){ return ("BarcodeDetector" in window); }
+function hasJsQR(){ return (typeof window.jsQR==="function"); }
+function anyEngine(){ return hasNative()||hasJsQR(); }
+function decodeWithJsQR(src){
+  const w=src.videoWidth||src.width, h=src.videoHeight||src.height; if(!w||!h) return null;
+  const scale=Math.min(1,640/Math.max(w,h)), cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
+  if(!_cv){_cv=document.createElement("canvas");_cx=_cv.getContext("2d",{willReadFrequently:true});}
+  _cv.width=cw; _cv.height=ch; _cx.drawImage(src,0,0,cw,ch);
+  const img=_cx.getImageData(0,0,cw,ch);
+  const r=window.jsQR(img.data,img.width,img.height,{inversionAttempts:"dontInvert"});
+  return (r&&r.data)?r.data:null;
+}
+async function decodeFromVideo(){
+  if(hasNative()){ try{ detector=detector||new window.BarcodeDetector({formats:["qr_code"]}); const codes=await detector.detect(video); if(codes&&codes.length) return codes[0].rawValue; }catch(e){} }
+  if(hasJsQR()) return decodeWithJsQR(video);
+  return null;
+}
+async function startCam(){
+  if(!anyEngine()){ await new Promise(r=>setTimeout(r,400)); } // margen para que cargue jsQR
+  if(!anyEngine()){ document.getElementById("camoff").innerHTML='<div class="warnA" style="margin:0">'+t("no_detector")+'</div>'; document.getElementById("manualWrap").open=true; return; }
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
+    video.srcObject=camStream; await video.play();
+    document.getElementById("camoff").classList.add("hidden");
+    document.getElementById("reticle").classList.remove("hidden");
+    document.getElementById("camhint").classList.remove("hidden");
+    document.getElementById("camControls").innerHTML='<button class="btn btn-ghost" id="stopCam">'+t("stop_cam")+'</button>';
+    document.getElementById("stopCam").onclick=stopCam;
+    scanLoop();
+  }catch(e){ document.getElementById("camoff").innerHTML='<div class="warn" style="margin:0">'+t("cam_fail")+'</div>'; }
+}
+function stopCam(){ scanning=false; if(camStream){camStream.getTracks().forEach(tr=>tr.stop());camStream=null;}
+  document.getElementById("camoff").classList.remove("hidden");
+  document.getElementById("reticle").classList.add("hidden");
+  document.getElementById("camhint").classList.add("hidden");
+  document.getElementById("camControls").innerHTML='<button class="btn btn-primary" id="startCam">'+t("start_cam")+'</button>';
+  document.getElementById("startCam").onclick=startCam;
+}
+async function scanLoop(){
+  if(!camStream||resultEl.classList.contains("show")){scanning=false;return;}
+  scanning=true;
+  let tok=null; try{ tok=await decodeFromVideo(); }catch(e){}
+  if(tok){ await procesarToken(tok); return; }
+  if(scanning&&camStream) requestAnimationFrame(scanLoop);
+}
+document.getElementById("startCam").onclick=startCam;
+
+/* manual + imagen */
+document.getElementById("manualBtn").onclick=()=>{const v=document.getElementById("manualToken").value;if(v.trim())procesarToken(v.trim());};
+document.getElementById("imgFile").onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+  try{ const bmp=await createImageBitmap(f); let tok=null;
+    if(hasNative()){ try{ detector=detector||new window.BarcodeDetector({formats:["qr_code"]}); const codes=await detector.detect(bmp); if(codes&&codes.length) tok=codes[0].rawValue; }catch(e){} }
+    if(!tok&&hasJsQR()) tok=decodeWithJsQR(bmp);
+    if(tok) procesarToken(tok); else alert(t("img_none"));
+  }catch(e){ alert(t("img_none")); } };
+
+/* ===================== arranque ===================== */
+(async function init(){
+  if("serviceWorker" in navigator){ try{ await navigator.serviceWorker.register("sw.js"); }catch(e){} }
+  if(!window.isSecureContext||!crypto.subtle){ alert("Para usar la cámara y verificar firmas, abre esta página por HTTPS (o localhost)."); }
+  const savedPub=LS.get("pub_jwk"); if(savedPub){ try{await importarPub(savedPub);}catch(e){} }
+  const savedRev=LS.get("rev_obj"); if(savedRev&&pubKey){ try{await cargarRevObj(savedRev);}catch(e){} }
+  applyLang();
+})();
+</script>
+</body>
+</html>
